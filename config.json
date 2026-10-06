@@ -1,0 +1,78 @@
+{
+  "dock": {
+    "edge": "left",
+    "offset_percent": 115,
+    "auto_hide": true,
+    "trigger_mode": "hover",
+    "peek_size_px": 8,
+    "dock_width": 72,
+    "dock_height": 260,
+    "target_monitor": "1",
+    "scale_percent": 84,
+    "circle_blue_diam": 87,
+    "circle_red_diam": 109,
+    "pos_blue_circle": 18,
+    "pos_red_circle": 111,
+    "tail_size_px": 53,
+    "element_spacing": 1,
+    "base_middle_height": 209,
+    "element_order": [
+      "ram",
+      "cpu",
+      "storage"
+    ],
+    "notch_enabled": true
+  },
+  "colors": {
+    "background_r": 0.11,
+    "background_g": 0.11,
+    "background_b": 0.11,
+    "background_a": 1.0,
+    "ram_ring": [
+      0.965,
+      0.827,
+      0.176
+    ],
+    "cpu_ring": [
+      0.965,
+      0.38,
+      0.318
+    ],
+    "disk_ring": [
+      0.384,
+      0.627,
+      0.918
+    ],
+    "notch_color": [
+      0.0,
+      0.28,
+      1.0
+    ]
+  },
+  "safety": {
+    "sound_alert_enabled": true,
+    "sound_threshold_percent": 90.0,
+    "kill_threshold_percent": 93.0,
+    "whitelist": [
+      "ZeroFreeze",
+      "python3",
+      "gnome-shell",
+      "cinnamon",
+      "xfwm4",
+      "Xorg",
+      "systemd",
+      "systemd-udevd",
+      "pulseaudio",
+      "pipewire",
+      "gdm",
+      "lightdm",
+      "dbus-daemon",
+      "mutter"
+    ]
+  },
+  "ui": {
+    "show_manual_kill_buttons": false,
+    "refresh_interval_ms": 1000,
+    "use_friendly_names": true
+  }
+}

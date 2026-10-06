@@ -1,0 +1,58 @@
+app-id: io.github.L1nker.ZeroFreeze
+runtime: org.gnome.Platform
+runtime-version: '46'
+sdk: org.gnome.Sdk
+command: zerofreeze
+
+finish-args:
+  # Acesso gráfico e display (Wayland e X11)
+  - --socket=fallback-x11
+  - --socket=wayland
+  # Notificações e som
+  - --talk-name=org.freedesktop.Notifications
+  # Monitoramento de hardware e processos no sistema hospedeiro
+  - --filesystem=/proc:ro
+  - --filesystem=/sys:ro
+  - --filesystem=host-os:ro
+  # Comunicação com processos do hospedeiro para proteção anti-congelamento
+  - --system-talk-name=org.freedesktop.login1
+
+modules:
+  - name: python3-psutil
+    buildsystem: simple
+    build-commands:
+      - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}" --prefix=${FLATPAK_DEST} psutil
+    sources:
+      - type: file
+        url: https://files.pythonhosted.org/packages/source/p/psutil/psutil-5.9.8.tar.gz
+        sha256: 6be126f7346078653842c56a31c1825b4fa2ae82c2b7ba1db5e305e95fe05ef9
+
+  - name: zerofreeze
+    buildsystem: simple
+    build-commands:
+      # Instalação dos arquivos do programa
+      - install -d /app/share/zerofreeze
+      - cp -r src /app/share/zerofreeze/
+      - cp -r assets /app/share/zerofreeze/
+      - cp config.json /app/share/zerofreeze/
+
+      # Script executável de inicialização
+      - install -d /app/bin
+      - |
+        cat << 'EOF' > /app/bin/zerofreeze
+        #!/bin/sh
+        exec python3 /app/share/zerofreeze/src/main.py "$@"
+        EOF
+      - chmod +x /app/bin/zerofreeze
+
+      # Ícone do aplicativo
+      - install -D -m 0644 assets/icons/zerofreeze.png /app/share/icons/hicolor/512x512/apps/io.github.L1nker.ZeroFreeze.png
+
+      # Arquivo .desktop
+      - install -D -m 0644 packaging/flatpak/io.github.L1nker.ZeroFreeze.desktop /app/share/applications/io.github.L1nker.ZeroFreeze.desktop
+
+      # Metainfo AppStream
+      - install -D -m 0644 packaging/flatpak/io.github.L1nker.ZeroFreeze.metainfo.xml /app/share/metainfo/io.github.L1nker.ZeroFreeze.metainfo.xml
+    sources:
+      - type: dir
+        path: ../../

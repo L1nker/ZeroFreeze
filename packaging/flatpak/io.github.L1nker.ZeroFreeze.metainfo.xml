@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.L1nker.ZeroFreeze</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>ZeroFreeze</name>
+  <summary>Dock inteligente de salvaguarda de RAM e monitoramento anti-travamento</summary>
+
+  <description>
+    <p>
+      O ZeroFreeze é um utilitário inteligente e elegante projetado para prevenir congelamentos e travamentos críticos no Linux causados por esgotamento de memória RAM e Swap.
+    </p>
+    <p>
+      Ele opera silenciosamente na sua área de trabalho através de uma dock flutuante ultra-leve, oferecendo:
+    </p>
+    <ul>
+      <li>Dock flutuante com suporte a temas modernos (Dark Glass, Light Glass, Cyberpunk e Minimalist).</li>
+      <li>Módulos em tempo real para RAM, CPU, Swap, Tráfego de Rede e Relógio com Data.</li>
+      <li>Algoritmo Anti-Freeze com salvaguarda automática que encerra abas e processos pesados antes do sistema colapsar.</li>
+      <li>Recurso de Auto-Hide inteligente que recolhe a dock quando janelas se aproximam, reabrindo por proximidade ou clique.</li>
+      <li>Entalhe luminoso (LED) com alertas visuais intuitivos de estresse de memória.</li>
+      <li>Painel completo de personalização visual: opacidade, escala, posição vertical e exibição de módulos.</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.L1nker.ZeroFreeze.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>ZeroFreeze Dock Flutuante no Desktop</caption>
+      <image>https://raw.githubusercontent.com/L1nker/ZeroFreeze/main/assets/screenshots/dock_preview.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Janela de Configurações e Personalização Visual</caption>
+      <image>https://raw.githubusercontent.com/L1nker/ZeroFreeze/main/assets/screenshots/settings_preview.png</image>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/L1nker/ZeroFreeze</url>
+  <url type="bugtracker">https://github.com/L1nker/ZeroFreeze/issues</url>
+
+  <provides>
+    <binary>zerofreeze</binary>
+  </provides>
+
+  <releases>
+    <release version="1.0.0" date="2026-10-06">
+      <description>
+        <p>Lançamento oficial da versão 1.0.0 estável do ZeroFreeze:</p>
+        <ul>
+          <li>Dock flutuante interativa com suporte a Wayland e X11.</li>
+          <li>Módulos configuráveis: RAM, CPU, Swap, Rede e Relógio.</li>
+          <li>Mecanismo de salvaguarda e mitigação de congelamento de RAM.</li>
+          <li>Suporte completo a Auto-Hide, temas e entalhe luminoso.</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+
+  <content_rating type="oars-1.1" />
+</component>

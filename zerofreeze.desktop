@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=ZeroFreeze
+Comment=Gerenciador Inteligente de Memória e Monitor Anti-Freeze para Linux
+Exec=/home/linker/AG_Local/ZeroFreeze/run.sh
+Icon=/home/linker/AG_Local/ZeroFreeze/assets/icons/zerofreeze.png
+Terminal=false
+Type=Application
+Categories=Utility;System;Monitor;
+StartupNotify=false

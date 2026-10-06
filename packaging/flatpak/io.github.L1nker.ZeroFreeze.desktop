@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=ZeroFreeze
+GenericName=Monitor Anti-Freeze e Gerenciador de RAM
+Comment=Gerenciador Inteligente de Memória e Dock de Monitoramento Anti-Travamento
+Exec=zerofreeze
+Icon=io.github.L1nker.ZeroFreeze
+Terminal=false
+Type=Application
+Categories=Utility;System;Monitor;
+Keywords=ram;memory;freeze;monitor;dock;cleaner;
+StartupNotify=false
