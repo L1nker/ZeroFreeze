@@ -54,5 +54,6 @@ modules:
       # Metainfo AppStream
       - install -D -m 0644 packaging/flatpak/io.github.L1nker.ZeroFreeze.metainfo.xml /app/share/metainfo/io.github.L1nker.ZeroFreeze.metainfo.xml
     sources:
-      - type: dir
-        path: ../../
+      - type: git
+        url: https://github.com/L1nker/ZeroFreeze.git
+        commit: 19b78ec2d023ff3d79e1f3165996275a207cafc9
