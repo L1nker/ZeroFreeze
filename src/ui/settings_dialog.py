@@ -4,6 +4,8 @@ Interface moderna estruturada em 4 categorias (Exibição, Aparência, Módulos,
 com design inspirado no GNOME Settings / Adwaita.
 """
 
+import os
+import sys
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk, Pango
@@ -121,11 +123,12 @@ class SettingsDialog(Gtk.Dialog):
         content_area.pack_start(header_box, False, False, 0)
         content_area.pack_start(self.stack, True, True, 0)
 
-        # Construção das 4 Abas
+        # Construção das 5 Abas
         self._build_tab_display()
         self._build_tab_appearance()
         self._build_tab_modules()
         self._build_tab_system()
+        self._build_tab_about()
 
         # Desativa a captura indesejada de rolagem do mouse em sliders e combos
         self._disable_scroll_recursively(content_area)
@@ -166,6 +169,50 @@ class SettingsDialog(Gtk.Dialog):
             margin: 0px;
             padding: 0px;
             border: none;
+        }
+        .about-tab-white {
+            background-color: #ffffff;
+            color: #202020;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            padding: 16px;
+            margin: 8px 12px 14px 12px;
+        }
+        .about-title {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #111111;
+        }
+        .about-by {
+            font-size: 11pt;
+            font-weight: normal;
+            color: #555555;
+        }
+        .about-version {
+            font-size: 10pt;
+            color: #666666;
+        }
+        .about-intro {
+            font-size: 10.5pt;
+            color: #333333;
+        }
+        .about-features-view {
+            background-color: #f6f8fa;
+            color: #24292f;
+            border: 1px solid #d0d7de;
+            border-radius: 8px;
+            font-family: monospace, sans-serif;
+            font-size: 9.5pt;
+            padding: 8px;
+        }
+        .about-features-view text {
+            background-color: #f6f8fa;
+            color: #24292f;
+        }
+        .about-footer {
+            font-size: 9.5pt;
+            font-weight: 500;
+            color: #666666;
         }
         """
         provider = Gtk.CssProvider()
@@ -707,6 +754,116 @@ class SettingsDialog(Gtk.Dialog):
         box_page.pack_start(group_tools, False, False, 0)
 
         self.stack.add_titled(scrolled, "system", "Sistema")
+
+    # =========================================================================
+    # ABA 5: SOBRE (IDENTIDADE, MANIFESTO, RECURSOS E CRÉDITOS)
+    # =========================================================================
+    def _build_tab_about(self):
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+
+        box_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box_card.get_style_context().add_class("about-tab-white")
+        scrolled.add(box_card)
+
+        # 1. Topo: [LOGO] à esquerda + [NOME] [by Linker] + [VERSÃO]
+        top_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
+        icon_path = "/home/linker/AG_Local/ZeroFreeze/assets/icons/zerofreeze-64.png"
+        if os.path.exists(icon_path):
+            img_logo = Gtk.Image.new_from_file(icon_path)
+        else:
+            img_logo = Gtk.Image.new_from_icon_name("utilities-system-monitor", Gtk.IconSize.DIALOG)
+        top_box.pack_start(img_logo, False, False, 0)
+
+        title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        title_box.set_valign(Gtk.Align.CENTER)
+
+        # Linha 1: [ZeroFreeze] [by Linker]
+        row_title = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        lbl_name = Gtk.Label(label="ZeroFreeze")
+        lbl_name.get_style_context().add_class("about-title")
+        lbl_by = Gtk.Label(label="by Linker")
+        lbl_by.get_style_context().add_class("about-by")
+        lbl_by.set_valign(Gtk.Align.BASELINE)
+        row_title.pack_start(lbl_name, False, False, 0)
+        row_title.pack_start(lbl_by, False, False, 0)
+        title_box.pack_start(row_title, False, False, 0)
+
+        # Linha 2: [VERSÃO]
+        lbl_version = Gtk.Label(label="Versão 1.0.0 Oficial (Stable)")
+        lbl_version.get_style_context().add_class("about-version")
+        lbl_version.set_halign(Gtk.Align.START)
+        title_box.pack_start(lbl_version, False, False, 0)
+
+        top_box.pack_start(title_box, False, False, 0)
+        box_card.pack_start(top_box, False, False, 0)
+
+        # 2. Linha de divisão
+        sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+        box_card.pack_start(sep, False, False, 0)
+
+        # 3. Texto Centralizado do Linker
+        intro_text = (
+            "Este aplicativo foi desenvolvido por um usuário frustrado que não entende como que um sistema "
+            "(Linux) amado por muitos não tem um gerenciador de memória que atua quando o computador quer congelar. "
+            "Usei (e ainda uso) Windows há mais de 25 anos e uma das coisas que ninguém pode negar é que o sistema "
+            "que a comunidade ama chamar de 'Ruindows' tem um excelente gerenciamento de memória, então tentei trazer "
+            "um pouco dessa experiência a vocês."
+        )
+        lbl_intro = Gtk.Label(label=intro_text)
+        lbl_intro.set_line_wrap(True)
+        lbl_intro.set_justify(Gtk.Justification.CENTER)
+        lbl_intro.get_style_context().add_class("about-intro")
+        box_card.pack_start(lbl_intro, False, False, 0)
+
+        # 4. Caixa de texto rolável com lista de coisas que ele faz e créditos
+        scrolled_text = Gtk.ScrolledWindow()
+        scrolled_text.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scrolled_text.set_size_request(-1, 220)
+        scrolled_text.get_style_context().add_class("about-features-view")
+
+        text_view = Gtk.TextView()
+        text_view.set_editable(False)
+        text_view.set_cursor_visible(False)
+        text_view.set_wrap_mode(Gtk.WrapMode.WORD)
+        text_view.set_left_margin(10)
+        text_view.set_right_margin(10)
+        text_view.set_top_margin(10)
+        text_view.set_bottom_margin(10)
+
+        features_content = (
+            "🤖 Desenvolvido em parceria técnica com o AG (Antigravity da Google DeepMind)\n\n"
+            "O QUE ESTE APLICATIVO FAZ & COMO ELE FAZ:\n\n"
+            "1. Salvaguarda Anti-Freeze em Tempo Real:\n"
+            "   • Monitora continuamente o esgotamento de memória física (RAM) e espaço de troca (Swap).\n"
+            "   • Thread sentinela dedicada e de alta frequência quando o sistema atinge estresse crítico.\n"
+            "   • Emite alerta sonoro preventivo ao atingir o limiar de atenção configurado.\n"
+            "   • Realiza a finalização cirúrgica e inteligente do processo vilão antes do congelamento geral (Swap Thrashing).\n"
+            "   • Agrupa árvores de processos hierárquicos (abas de navegadores como Firefox e Chrome ou aplicações Electron) para encerrar o processo-pai por completo.\n\n"
+            "2. Proteção e Autopreservação:\n"
+            "   • Autopreservação ativa: o ZeroFreeze é blindado contra finalização acidental de si próprio.\n"
+            "   • Gerenciador de Lista Branca (Whitelist): selecione quais aplicações nunca podem ser encerradas.\n"
+            "   • Histórico de Intervenções e Auditoria: registro cronológico detalhado com severidade, consumo e picos súbitos de RAM (>750MB).\n\n"
+            "3. Dock Flutuante & Design Orgânico:\n"
+            "   • Dock desenhada dinamicamente em vetor Cairo com curvaturas suaves e física de mola (Spring Physics).\n"
+            "   • Compatibilidade transparente com ambientes Wayland e X11.\n"
+            "   • Anéis medidores circulares em tempo real para RAM, CPU e Discos de Armazenamento individuais.\n"
+            "   • Recurso de Auto-Hide inteligente com Entalhe Luminoso (Notch) e reabertura por proximidade ou clique.\n"
+            "   • Janelas pop-up flutuantes detalhadas abertas por clique ou hover, exibindo taxas de leitura/escrita, memória livre e ranking de consumo."
+        )
+
+        buffer = text_view.get_buffer()
+        buffer.set_text(features_content)
+        scrolled_text.add(text_view)
+        box_card.pack_start(scrolled_text, True, True, 0)
+
+        # 5. Rodapé
+        lbl_footer = Gtk.Label(label="Linker • 2026 • Brasil")
+        lbl_footer.get_style_context().add_class("about-footer")
+        lbl_footer.set_halign(Gtk.Align.CENTER)
+        box_card.pack_start(lbl_footer, False, False, 4)
+
+        self.stack.add_titled(scrolled, "about", "Sobre")
 
 
     # =========================================================================
