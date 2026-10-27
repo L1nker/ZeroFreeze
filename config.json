@@ -19,6 +19,7 @@
     "element_order": [
       "ram",
       "cpu",
+      "temp",
       "storage"
     ],
     "notch_enabled": true
@@ -37,6 +38,11 @@
       0.965,
       0.38,
       0.318
+    ],
+    "temp_ring": [
+      0.2,
+      0.7,
+      1.0
     ],
     "disk_ring": [
       0.384,

@@ -17,6 +17,8 @@ SESSION_MANAGERS = {
     "init", "lightdm", "sddm", "startxfce4", "x-session-manager"
 }
 
+from collections import deque
+
 class SystemMonitor:
     def __init__(self, config_manager=None):
         self.config_mgr = config_manager
@@ -25,6 +27,10 @@ class SystemMonitor:
         self.smart_cache = {}
         self.last_smart_check = 0
         psutil.cpu_percent(interval=None)
+
+        # Histórico de 1 hora por sensor (1 ponto a cada 30 segundos = 120 pontos)
+        self.temp_history = {}
+        self.last_history_sample_time = 0
 
     def get_cpu_temperature(self):
         """Retorna temperatura da CPU em °C ou None."""
@@ -106,6 +112,140 @@ class SystemMonitor:
             "count": psutil.cpu_count(logical=True),
             "temp": cpu_temp
         }
+
+    def get_all_hardware_temperatures(self):
+        """
+        Coleta e categoriza todos os sensores de temperatura de hardware disponíveis:
+        - CPU (Package e Cores)
+        - Placa-Mãe / Gabinete (acpitz, thermal_zones)
+        - Drives NVMe / SSDs
+        - Placa de Rede / Wi-Fi
+        Mantém o histórico de 1 hora (amostras a cada ~30s ou a cada chamada)
+        e calcula a máxima temperatura global para a dock.
+        """
+        sensors_list = []
+        now = time.time()
+        should_record = (now - self.last_history_sample_time >= 25.0)
+
+        # 1. CPU (Package id 0 e núcleos)
+        temps = {}
+        try:
+            temps = psutil.sensors_temperatures() or {}
+        except Exception:
+            pass
+
+        # CPU Package
+        cpu_package_temp = self.get_cpu_temperature()
+        if cpu_package_temp is not None:
+            sensors_list.append({
+                "id": "cpu_package",
+                "name": "Processador (CPU)",
+                "category": "cpu",
+                "current": cpu_package_temp
+            })
+
+        # Placa-mãe / Gabinete (acpitz_0 ou thermal_zone0)
+        mb_temp = None
+        if "acpitz_0" in temps and temps["acpitz_0"]:
+            entry = temps["acpitz_0"][0]
+            if entry.current and entry.current > 0:
+                mb_temp = int(round(entry.current))
+        elif "acpitz" in temps and temps["acpitz"]:
+            entry = temps["acpitz"][0]
+            if entry.current and entry.current > 0:
+                mb_temp = int(round(entry.current))
+
+        if mb_temp is not None:
+            sensors_list.append({
+                "id": "motherboard",
+                "name": "Placa-mãe / Gabinete",
+                "category": "motherboard",
+                "current": mb_temp
+            })
+
+        # Drives NVMe / Armazenamento
+        nvme_idx = 1
+        for h in sorted(glob.glob("/sys/class/hwmon/hwmon*")):
+            try:
+                name_f = os.path.join(h, "name")
+                if os.path.exists(name_f):
+                    with open(name_f) as f:
+                        h_name = f.read().strip()
+                    if h_name == "nvme":
+                        temp_f = os.path.join(h, "temp1_input")
+                        if os.path.exists(temp_f):
+                            with open(temp_f) as tf:
+                                val = int(round(int(tf.read().strip()) / 1000.0))
+                            dev_name = os.path.basename(os.path.realpath(os.path.join(h, "device")))
+                            sensors_list.append({
+                                "id": f"nvme_{dev_name}",
+                                "name": f"SSD NVMe ({dev_name.upper()})",
+                                "category": "disk",
+                                "current": val
+                            })
+                            nvme_idx += 1
+            except Exception:
+                pass
+
+        # Sensores de Circuito / Alimentação (SEN2, SEN3)
+        for zone in sorted(glob.glob("/sys/class/thermal/thermal_zone*")):
+            try:
+                type_f = os.path.join(zone, "type")
+                temp_f = os.path.join(zone, "temp")
+                if os.path.exists(type_f) and os.path.exists(temp_f):
+                    with open(type_f) as f:
+                        z_type = f.read().strip()
+                    if z_type in ["SEN2", "SEN3", "TCPU_PCI"]:
+                        with open(temp_f) as tf:
+                            val = int(round(int(tf.read().strip()) / 1000.0))
+                        name_display = "Circuito de Alimentação (VRM)" if z_type == "SEN2" else f"Sensor Interno ({z_type})"
+                        sensors_list.append({
+                            "id": f"thermal_{z_type}",
+                            "name": name_display,
+                            "category": "chipset",
+                            "current": val
+                        })
+            except Exception:
+                pass
+
+        # Placa de Rede / Wi-Fi (mt7921_phy0)
+        if "mt7921_phy0" in temps and temps["mt7921_phy0"]:
+            entry = temps["mt7921_phy0"][0]
+            if entry.current and entry.current > 0:
+                sensors_list.append({
+                    "id": "wifi_chip",
+                    "name": "Placa Wi-Fi / Bluetooth",
+                    "category": "network",
+                    "current": int(round(entry.current))
+                })
+
+        # Atualiza histórico de 1 hora (120 amostras)
+        if should_record or not self.temp_history:
+            self.last_history_sample_time = now
+            for s in sensors_list:
+                sid = s["id"]
+                if sid not in self.temp_history:
+                    # Inicializa com 10 pontos repetidos do valor inicial para desenhar a sparkline de imediato
+                    self.temp_history[sid] = deque([s["current"]] * 10, maxlen=120)
+                else:
+                    self.temp_history[sid].append(s["current"])
+
+        # Enriquecer cada sensor com Mínima, Máxima e Lista de Pontos
+        max_overall_temp = 0
+        for s in sensors_list:
+            sid = s["id"]
+            pts = list(self.temp_history.get(sid, [s["current"]]))
+            s["min"] = min(pts) if pts else s["current"]
+            s["max"] = max(pts) if pts else s["current"]
+            s["points"] = pts
+            if s["current"] > max_overall_temp:
+                max_overall_temp = s["current"]
+
+        return {
+            "max_overall_temp": max_overall_temp,
+            "sensors": sensors_list
+        }
+
 
     def get_top_memory_apps(self, limit=5):
         """

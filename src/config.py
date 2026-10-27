@@ -24,7 +24,7 @@ DEFAULT_CONFIG = {
         "tail_size_px": 53,
         "element_spacing": 8,         # Distância entre elementos calibrada pelo Linker
         "base_middle_height": 243,    # Altura da base (Fatia 2) calibrada pelo Linker
-        "element_order": ["ram", "cpu", "storage"],  # Ordem padrão dos elementos na dock
+        "element_order": ["ram", "cpu", "temp", "storage"],  # Ordem padrão dos elementos na dock
         "notch_enabled": True         # Barrinha luminosa (entalhe) quando recolhido
     },
     "colors": {
@@ -34,6 +34,7 @@ DEFAULT_CONFIG = {
         "background_a": 0.94,
         "ram_ring": [1.0, 0.45, 0.0],
         "cpu_ring": [0.15, 0.85, 0.55],
+        "temp_ring": [0.2, 0.7, 1.0],
         "disk_ring": [0.95, 0.80, 0.15],
         "notch_color": [0.0, 0.28, 1.0]  # Cor do entalhe luminoso (azul elétrico padrão)
     },

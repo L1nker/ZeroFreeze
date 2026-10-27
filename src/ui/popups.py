@@ -11,7 +11,12 @@ Cada janela é INDEPENDENTE e DESCARTÁVEL:
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, Pango
-from src.ui.icons import draw_ram_icon, draw_cpu_icon, draw_disk_icon
+import math
+import cairo
+from src.ui.icons import (
+    draw_ram_icon, draw_cpu_icon, draw_disk_icon,
+    draw_temp_icon, draw_motherboard_icon, draw_wifi_icon
+)
 
 CSS_POPUP = b"""
 window.flyout-window {
@@ -211,10 +216,6 @@ class BasePopupWindow(Gtk.Window):
             cx = alloc.width / 2.0
             cy = alloc.height / 2.0
 
-            cr.set_operator(0)  # CLEAR
-            cr.paint()
-            cr.set_operator(2)  # OVER
-
             # Cor branca pura (1.0, 1.0, 1.0) conforme solicitado pelo Linker
             if icon_type == "ram":
                 draw_ram_icon(cr, cx, cy, icon_r=1.0, icon_g=1.0, icon_b=1.0, scale=0.85)
@@ -222,6 +223,12 @@ class BasePopupWindow(Gtk.Window):
                 draw_cpu_icon(cr, cx, cy, icon_r=1.0, icon_g=1.0, icon_b=1.0, scale=0.85)
             elif icon_type == "disk":
                 draw_disk_icon(cr, cx, cy, icon_r=1.0, icon_g=1.0, icon_b=1.0, scale=0.85)
+            elif icon_type == "temp":
+                draw_temp_icon(cr, cx, cy, icon_r=1.0, icon_g=1.0, icon_b=1.0, scale=0.85)
+            elif icon_type in ["motherboard", "chipset"]:
+                draw_motherboard_icon(cr, cx, cy, icon_r=1.0, icon_g=1.0, icon_b=1.0, scale=0.85)
+            elif icon_type == "network":
+                draw_wifi_icon(cr, cx, cy, icon_r=1.0, icon_g=1.0, icon_b=1.0, scale=0.85)
             return False
 
         da.connect("draw", on_draw)
@@ -597,6 +604,228 @@ class SingleDiskPopupWindow(BasePopupWindow):
         self.card.pack_start(smart_box, False, False, 0)
 
 
+class SparklineGraph(Gtk.DrawingArea):
+    """
+    Gráfico Sparkline de Área para o Histórico de 1 Hora.
+    Desenha uma curva suave com grid sutil de referência e degradê sob a curva.
+    """
+    def __init__(self, points, min_val, max_val, width=190, height=36):
+        super().__init__()
+        self.points = points if points else [0]
+        self.min_val = min_val
+        self.max_val = max_val
+        self.set_size_request(width, height)
+        self.connect("draw", self._on_draw)
+
+    def _on_draw(self, widget, cr):
+        alloc = widget.get_allocation()
+        w = float(alloc.width)
+        h = float(alloc.height)
+
+        # 1. Grid sutil (linhas horizontais e verticais de fundo)
+        cr.set_source_rgba(1.0, 1.0, 1.0, 0.07)
+        cr.set_line_width(0.7)
+
+        # Linhas horizontais (topo, meio, base)
+        for y_norm in [0.2, 0.5, 0.8]:
+            y_line = h * y_norm
+            cr.move_to(0, y_line)
+            cr.line_to(w, y_line)
+            cr.stroke()
+
+        # Linhas verticais (marcas de tempo a cada 15 min aprox)
+        for x_norm in [0.25, 0.5, 0.75]:
+            x_line = w * x_norm
+            cr.move_to(x_line, 0)
+            cr.line_to(x_line, h)
+            cr.stroke()
+
+        n = len(self.points)
+        if n < 2:
+            return False
+
+        # Margens verticais para a curva respirar dentro do box
+        pad_top = 4.0
+        pad_bottom = 4.0
+        draw_h = max(1.0, h - pad_top - pad_bottom)
+
+        span = float(self.max_val - self.min_val)
+        if span <= 0:
+            span = 10.0  # Range padrão se a temperatura estiver constante
+
+        # Converte pontos para coordenadas (X, Y)
+        coords = []
+        for i, val in enumerate(self.points):
+            x = (i / float(n - 1)) * w
+            # Inverte Y (maior temperatura no topo)
+            ratio = (val - self.min_val) / span
+            ratio = max(0.0, min(1.0, ratio))
+            y = (h - pad_bottom) - (ratio * draw_h)
+            coords.append((x, y))
+
+        # 2. Desenho do Degradê de Área sob a curva
+        cr.save()
+        cr.move_to(coords[0][0], h)
+        cr.line_to(coords[0][0], coords[0][1])
+
+        # Curva suave conectando os pontos
+        for i in range(len(coords) - 1):
+            p0 = coords[max(0, i - 1)]
+            p1 = coords[i]
+            p2 = coords[i + 1]
+            p3 = coords[min(len(coords) - 1, i + 2)]
+
+            cp1x = p1[0] + (p2[0] - p0[0]) / 6.0
+            cp1y = p1[1] + (p2[1] - p0[1]) / 6.0
+            cp2x = p2[0] - (p3[0] - p1[0]) / 6.0
+            cp2y = p2[1] - (p3[1] - p1[1]) / 6.0
+
+            cr.curve_to(cp1x, cp1y, cp2x, cp2y, p2[0], p2[1])
+
+        cr.line_to(coords[-1][0], h)
+        cr.close_path()
+
+        # Gradiente vertical azul ciano moderno
+        grad = cairo.LinearGradient(0, pad_top, 0, h)
+        grad.add_color_stop_rgba(0.0, 0.25, 0.65, 1.0, 0.38)
+        grad.add_color_stop_rgba(1.0, 0.10, 0.45, 0.9, 0.03)
+        cr.set_source(grad)
+        cr.fill()
+        cr.restore()
+
+        # 3. Traçado da Linha da Curva
+        cr.save()
+        cr.set_line_width(1.8)
+        cr.set_line_cap(cairo.LINE_CAP_ROUND)
+        cr.set_line_join(cairo.LINE_JOIN_ROUND)
+        cr.set_source_rgba(0.35, 0.78, 1.0, 0.95)
+
+        cr.move_to(coords[0][0], coords[0][1])
+        for i in range(len(coords) - 1):
+            p0 = coords[max(0, i - 1)]
+            p1 = coords[i]
+            p2 = coords[i + 1]
+            p3 = coords[min(len(coords) - 1, i + 2)]
+
+            cp1x = p1[0] + (p2[0] - p0[0]) / 6.0
+            cp1y = p1[1] + (p2[1] - p0[1]) / 6.0
+            cp2x = p2[0] - (p3[0] - p1[0]) / 6.0
+            cp2y = p2[1] - (p3[1] - p1[1]) / 6.0
+
+            cr.curve_to(cp1x, cp1y, cp2x, cp2y, p2[0], p2[1])
+
+        cr.stroke()
+
+        # Ponto luminoso no valor mais recente (extrema direita)
+        last_x, last_y = coords[-1]
+        cr.arc(last_x, last_y, 2.5, 0, 2 * math.pi)
+        cr.set_source_rgba(0.4, 0.9, 1.0, 1.0)
+        cr.fill()
+        cr.restore()
+
+        return False
+
+
+class HardwareTempPopupWindow(BasePopupWindow):
+    """
+    Janela Flyout de Temperaturas Globais do Hardware.
+    Apresenta cada componente com:
+    - Ícone e Nome do dispositivo
+    - Gráfico sparkline com histórico de 1 hora
+    - Temperaturas Mínima e Máxima atingidas na última hora
+    """
+    def __init__(self, parent_window, monitor_data):
+        super().__init__(parent_window)
+        self.set_default_size(360, -1)
+
+        temp_data = monitor_data.get("temp", {})
+        sensors = temp_data.get("sensors", [])
+
+        # Cabeçalho Principal com ícone de termômetro
+        header = self._create_header("Temperaturas do Sistema", icon_type="temp")
+        self.card.pack_start(header, False, False, 2)
+
+        # Subtítulo explicativo
+        max_temp = temp_data.get("max_overall_temp", 0)
+        lbl_sub = Gtk.Label(label=f"Pico atual no sistema: {max_temp}°C  •  Histórico de 1 hora")
+        lbl_sub.get_style_context().add_class("flyout-subtitle")
+        lbl_sub.set_halign(Gtk.Align.START)
+        self.card.pack_start(lbl_sub, False, False, 0)
+
+        self.card.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 3)
+
+        if not sensors:
+            lbl_empty = Gtk.Label(label="Nenhum sensor de temperatura detectado.")
+            lbl_empty.get_style_context().add_class("flyout-subtitle")
+            self.card.pack_start(lbl_empty, False, False, 10)
+            return
+
+        # Lista de Sensores
+        for s in sensors:
+            row_box = self._create_sensor_card(s)
+            self.card.pack_start(row_box, False, False, 2)
+
+    def _create_sensor_card(self, sensor_info):
+        """
+        Cria o card individual do componente exatamente conforme referência visual do Linker:
+        [ Ícone ] [ Nome + Sparkline ] [ Min / Max ]
+        """
+        card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        card.get_style_context().add_class("app-row")
+
+        category = sensor_info.get("category", "chipset")
+        icon_w = self._create_icon_widget(category)
+        icon_w.set_size_request(24, 24)
+        icon_w.set_valign(Gtk.Align.CENTER)
+        card.pack_start(icon_w, False, False, 2)
+
+        # Centro: Nome em cima + Sparkline embaixo
+        mid_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+
+        # Linha do título com a temperatura atual destacada
+        title_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        lbl_name = Gtk.Label(label=sensor_info.get("name", "Sensor"))
+        lbl_name.get_style_context().add_class("app-name")
+        lbl_name.set_halign(Gtk.Align.START)
+        title_box.pack_start(lbl_name, False, False, 0)
+
+        cur_val = sensor_info.get("current", 0)
+        c_cur = '#38ef7d' if cur_val < 55 else ('#ffa502' if cur_val <= 75 else '#ff4757')
+        lbl_cur = Gtk.Label()
+        lbl_cur.set_markup(f"<span color='{c_cur}'><b>{cur_val}°C</b></span>")
+        lbl_cur.set_halign(Gtk.Align.START)
+        title_box.pack_start(lbl_cur, False, False, 4)
+
+        mid_box.pack_start(title_box, False, False, 0)
+
+        # Gráfico Sparkline de 1 hora
+        pts = sensor_info.get("points", [cur_val])
+        min_v = sensor_info.get("min", cur_val)
+        max_v = sensor_info.get("max", cur_val)
+        spark = SparklineGraph(pts, min_v, max_v, width=175, height=32)
+        mid_box.pack_start(spark, True, True, 0)
+
+        card.pack_start(mid_box, True, True, 0)
+
+        # Direita: Min e Max na última 1 hora
+        right_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        right_box.set_valign(Gtk.Align.CENTER)
+
+        lbl_min = Gtk.Label()
+        lbl_min.set_markup(f"<span size='smaller' color='#9aa0a6'>Mín.: </span><span color='#ffffff'><b>{min_v}°C</b></span>")
+        lbl_min.set_halign(Gtk.Align.END)
+        right_box.pack_start(lbl_min, False, False, 0)
+
+        lbl_max = Gtk.Label()
+        lbl_max.set_markup(f"<span size='smaller' color='#9aa0a6'>Máx.: </span><span color='#ff6b6b'><b>{max_v}°C</b></span>")
+        lbl_max.set_halign(Gtk.Align.END)
+        right_box.pack_start(lbl_max, False, False, 0)
+
+        card.pack_end(right_box, False, False, 2)
+
+        return card
+
+
 class PopupManager:
     """
     Gerencia o ciclo de vida dos pop-ups flyout.
@@ -633,6 +862,9 @@ class PopupManager:
 
         elif gauge_type == "cpu":
             popup = CPUPopupWindow(self.dock_window, monitor_data)
+
+        elif gauge_type == "temp":
+            popup = HardwareTempPopupWindow(self.dock_window, monitor_data)
 
         elif gauge_type.startswith("disk_mp_"):
             # Busca o disco pelo mountpoint (identificador estável)

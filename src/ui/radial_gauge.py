@@ -171,8 +171,9 @@ class RadialGauge(Gtk.EventBox):
         # --- 5. Ícone central vetorial com a cor personalizada do usuário ---
         self._draw_center_icon(cr, cx, cy, icon_r, icon_g, icon_b, scale=scale_factor)
 
-        # --- 6. Texto de porcentagem abaixo do anel (acompanha cor do anel) ---
-        text_pct = f"{int(round(self.percent))}%"
+        # --- 6. Texto de valor abaixo do anel (acompanha cor do anel) ---
+        suffix = getattr(self, "value_suffix", "%")
+        text_pct = f"{int(round(self.percent))}{suffix}"
         cr.select_font_face("Sans", 0, 1)  # Normal, Bold
         cr.set_font_size(max(6.5, 10.0 * scale_factor))
         cr.set_source_rgba(r, g, b, 1.0)
@@ -192,6 +193,9 @@ class RadialGauge(Gtk.EventBox):
             icons.draw_ram_icon(cr, cx, cy, icon_r, icon_g, icon_b, scale=scale)
         elif self.title == "CPU":
             icons.draw_cpu_icon(cr, cx, cy, icon_r, icon_g, icon_b, scale=scale)
+        elif self.title in ["TEMP", "Temperatura"]:
+            icons.draw_temp_icon(cr, cx, cy, icon_r, icon_g, icon_b, scale=scale)
         else:
             icons.draw_disk_icon(cr, cx, cy, icon_r, icon_g, icon_b, scale=scale)
+
 

@@ -84,10 +84,11 @@ class WidgetWindow(Gtk.Window):
         # --- Cores configuradas ---
         ram_c = self.config_mgr.get("colors", "ram_ring", [1.0, 0.45, 0.0])
         cpu_c = self.config_mgr.get("colors", "cpu_ring", [0.15, 0.85, 0.55])
+        temp_c = self.config_mgr.get("colors", "temp_ring", [0.2, 0.7, 1.0])
 
         self.hover_popup_timer_id = None
 
-        # --- Medidores fixos: RAM e CPU ---
+        # --- Medidores fixos: RAM, CPU e TEMPERATURA ---
         gauge_sz = self._get_gauge_size()
         self.gauge_ram = RadialGauge("RAM", "⚡", default_color=tuple(ram_c), size=gauge_sz)
         self.gauge_ram.connect("gauge-clicked", lambda g: self._on_gauge_clicked("ram"))
@@ -96,6 +97,11 @@ class WidgetWindow(Gtk.Window):
         self.gauge_cpu = RadialGauge("CPU", "✹", default_color=tuple(cpu_c), size=gauge_sz)
         self.gauge_cpu.connect("gauge-clicked", lambda g: self._on_gauge_clicked("cpu"))
         self.gauge_cpu.connect("gauge-hovered", lambda g: self._on_gauge_hovered("cpu"))
+
+        self.gauge_temp = RadialGauge("TEMP", "🌡", default_color=tuple(temp_c), size=gauge_sz)
+        self.gauge_temp.value_suffix = "°C"
+        self.gauge_temp.connect("gauge-clicked", lambda g: self._on_gauge_clicked("temp"))
+        self.gauge_temp.connect("gauge-hovered", lambda g: self._on_gauge_hovered("temp"))
 
         # Lista de (RadialGauge, disk_info_inicial)
         self.disk_gauges = []
@@ -221,10 +227,11 @@ class WidgetWindow(Gtk.Window):
         if not self.disk_gauges:
             self._create_disk_gauges()
 
-        order = self.config_mgr.get("dock", "element_order", ["ram", "cpu", "storage"])
+        order = self.config_mgr.get("dock", "element_order", ["ram", "cpu", "temp", "storage"])
         groups = {
             "ram": [self.gauge_ram],
             "cpu": [self.gauge_cpu],
+            "temp": [self.gauge_temp],
             "storage": [dg for dg, _ in self.disk_gauges]
         }
 
@@ -271,17 +278,20 @@ class WidgetWindow(Gtk.Window):
             ram = self.monitor.get_ram_metrics()
             cpu = self.monitor.get_cpu_metrics()
             storage = self.monitor.get_storage_metrics()
+            temp_data = self.monitor.get_all_hardware_temperatures()
 
             self.current_metrics = {
                 "ram": ram,
                 "cpu": cpu,
                 "storage": storage,
+                "temp": temp_data,
                 "top_ram_apps": self.monitor.get_top_memory_apps(limit=5),
                 "top_cpu_apps": self.monitor.get_top_cpu_apps(limit=5)
             }
 
             self.gauge_ram.set_percent(ram["percent"])
             self.gauge_cpu.set_percent(cpu["percent"])
+            self.gauge_temp.set_percent(temp_data.get("max_overall_temp", 0))
 
             # Atualiza cada gauge de disco pelo mountpoint
             disks_map = {d["mountpoint"]: d for d in storage.get("disks", [])}
@@ -473,18 +483,22 @@ class WidgetWindow(Gtk.Window):
         gauge_sz = self._get_gauge_size()
         self.gauge_ram.set_size(gauge_sz)
         self.gauge_cpu.set_size(gauge_sz)
+        self.gauge_temp.set_size(gauge_sz)
         for dg, _ in self.disk_gauges:
             dg.set_size(gauge_sz)
 
         # Atualiza cores dos anéis
         ram_c = self.config_mgr.get("colors", "ram_ring", [1.0, 0.45, 0.0])
         cpu_c = self.config_mgr.get("colors", "cpu_ring", [0.15, 0.85, 0.55])
+        temp_c = self.config_mgr.get("colors", "temp_ring", [0.2, 0.7, 1.0])
         disk_c = self.config_mgr.get("colors", "disk_ring", [0.95, 0.80, 0.15])
 
         self.gauge_ram.default_color = tuple(ram_c)
         self.gauge_ram.area.queue_draw()
         self.gauge_cpu.default_color = tuple(cpu_c)
         self.gauge_cpu.area.queue_draw()
+        self.gauge_temp.default_color = tuple(temp_c)
+        self.gauge_temp.area.queue_draw()
         for dg, _ in self.disk_gauges:
             dg.default_color = tuple(disk_c)
             dg.area.queue_draw()
