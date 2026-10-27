@@ -276,6 +276,32 @@ class BasePopupWindow(Gtk.Window):
 
         return box
 
+    def _format_temperature_markup(self, temp, is_digital=False):
+        """
+        Formata o texto de temperatura:
+        - Se for digital/virtual (ex: rede, GoogleDrive): retorna None (não exibe nada).
+        - Se for físico mas sem sensor: retorna '🔴 Temperatura: ❌'.
+        - Se for físico com sensor: retorna '🟢/🟡/🔴 Temperatura: xx°C' com cores dinâmicas.
+        """
+        if is_digital:
+            return None
+        if temp is None:
+            return "<span color='#ff4757'>🔴</span> Temperatura: <span color='#ff4757'>❌</span>"
+
+        # Cores dinâmicas por faixa de temperatura
+        if temp < 55:
+            dot = "<span color='#2ed573'>🟢</span>"
+            temp_str = f"<span color='#2ed573'><b>{temp}°C</b></span>"
+        elif temp <= 75:
+            dot = "<span color='#ffa502'>🟡</span>"
+            temp_str = f"<span color='#ffa502'><b>{temp}°C</b></span>"
+        else:
+            dot = "<span color='#ff4757'>🔴</span>"
+            temp_str = f"<span color='#ff4757'><b>{temp}°C</b></span>"
+
+        return f"{dot} Temperatura: {temp_str}"
+
+
 
 class RAMPopupWindow(BasePopupWindow):
     """Pop-up de Memória RAM com ranking e opção de kill manual."""
@@ -295,12 +321,23 @@ class RAMPopupWindow(BasePopupWindow):
         # --- Cabeçalho ---
         self.card.pack_start(self._create_header("Memória RAM", icon_type="ram"), False, False, 0)
 
-        # --- Resumo geral ---
-        sub = Gtk.Label(label=f"Uso: {pct}%  •  {used} GB usados de {total} GB  •  {available} GB livres")
-        sub.get_style_context().add_class("flyout-subtitle")
-        sub.set_halign(Gtk.Align.START)
-        sub.set_line_wrap(True)
-        self.card.pack_start(sub, False, False, 0)
+        # --- Resumo geral em duas linhas padronizadas ---
+        temp_markup = self._format_temperature_markup(ram.get("temp"), ram.get("is_digital", False))
+        if temp_markup:
+            line1_text = f"Uso: {pct}%  •  {temp_markup}"
+        else:
+            line1_text = f"Uso: {pct}%"
+
+        lbl_line1 = Gtk.Label()
+        lbl_line1.set_markup(line1_text)
+        lbl_line1.get_style_context().add_class("flyout-subtitle")
+        lbl_line1.set_halign(Gtk.Align.START)
+        self.card.pack_start(lbl_line1, False, False, 0)
+
+        lbl_line2 = Gtk.Label(label=f"{used} GB usados de {total} GB  •  {available} GB livres")
+        lbl_line2.get_style_context().add_class("flyout-subtitle")
+        lbl_line2.set_halign(Gtk.Align.START)
+        self.card.pack_start(lbl_line2, False, False, 0)
 
         self.card.pack_start(self._make_progress_bar(pct), False, False, 2)
         self.card.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 2)
@@ -387,11 +424,23 @@ class CPUPopupWindow(BasePopupWindow):
         # --- Cabeçalho ---
         self.card.pack_start(self._create_header("Processador (CPU)", icon_type="cpu"), False, False, 0)
 
-        # --- Resumo ---
-        sub = Gtk.Label(label=f"Carga total: {pct}%  •  {cores} Núcleos lógicos")
-        sub.get_style_context().add_class("flyout-subtitle")
-        sub.set_halign(Gtk.Align.START)
-        self.card.pack_start(sub, False, False, 0)
+        # --- Resumo em duas linhas padronizadas ---
+        temp_markup = self._format_temperature_markup(cpu.get("temp"), is_digital=False)
+        if temp_markup:
+            line1_text = f"Carga total: {pct}%  •  {temp_markup}"
+        else:
+            line1_text = f"Carga total: {pct}%"
+
+        lbl_line1 = Gtk.Label()
+        lbl_line1.set_markup(line1_text)
+        lbl_line1.get_style_context().add_class("flyout-subtitle")
+        lbl_line1.set_halign(Gtk.Align.START)
+        self.card.pack_start(lbl_line1, False, False, 0)
+
+        lbl_line2 = Gtk.Label(label=f"{cores} Núcleos lógicos")
+        lbl_line2.get_style_context().add_class("flyout-subtitle")
+        lbl_line2.set_halign(Gtk.Align.START)
+        self.card.pack_start(lbl_line2, False, False, 0)
 
         self.card.pack_start(self._make_progress_bar(pct), False, False, 2)
         self.card.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 2)
@@ -493,10 +542,17 @@ class SingleDiskPopupWindow(BasePopupWindow):
         box_cap = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
 
         lbl_cap_used = Gtk.Label()
+        temp_markup = self._format_temperature_markup(disk_info.get("temp"), disk_info.get("is_digital", False))
+        
         if used_gb > 0:
-            lbl_cap_used.set_markup(f"<span color='#2ed573'><b>{used_gb} GB</b></span> usados ({pct}%)")
+            used_str = f"<span color='#2ed573'><b>{used_gb} GB</b></span> usados ({pct}%)"
         else:
-            lbl_cap_used.set_text(f"{used_gb} GB usados ({pct}%)")
+            used_str = f"{used_gb} GB usados ({pct}%)"
+
+        if temp_markup:
+            lbl_cap_used.set_markup(f"{used_str}  •  {temp_markup}")
+        else:
+            lbl_cap_used.set_markup(used_str)
         lbl_cap_used.get_style_context().add_class("flyout-subtitle")
         lbl_cap_used.set_halign(Gtk.Align.START)
         lbl_cap_used.set_line_wrap(False)
@@ -533,13 +589,11 @@ class SingleDiskPopupWindow(BasePopupWindow):
 
         # --- Diagnóstico SMART ---
         health = smart.get("health", "Saudável")
-        temp = smart.get("temp_c")
-        temp_str = f"  •  {temp}°C" if temp else ""
         health_icon = "✔" if health == "Saudável" else "⚠"
         health_class = "stat-val-green" if health == "Saudável" else "stat-val-warn"
 
         self.card.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 2)
-        smart_box = self._make_stat_box("SAÚDE DO DISCO (SMART)", f"{health_icon} {health}{temp_str}", health_class)
+        smart_box = self._make_stat_box("SAÚDE DO DISCO (SMART)", f"{health_icon} {health}", health_class)
         self.card.pack_start(smart_box, False, False, 0)
 
 

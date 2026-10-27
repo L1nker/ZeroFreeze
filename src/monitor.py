@@ -5,6 +5,8 @@ e Armazenamentos individuais com métricas exclusivas por partição/disco.
 """
 
 import os
+import re
+import glob
 import time
 import subprocess
 import psutil
@@ -24,22 +26,85 @@ class SystemMonitor:
         self.last_smart_check = 0
         psutil.cpu_percent(interval=None)
 
+    def get_cpu_temperature(self):
+        """Retorna temperatura da CPU em °C ou None."""
+        try:
+            # 1. Tenta via psutil sensors_temperatures
+            temps = psutil.sensors_temperatures()
+            if temps:
+                # Prioridade: coretemp, k10temp, zenpower, cpu_thermal, acpitz
+                for key in ["coretemp", "k10temp", "zenpower", "cpu_thermal", "acpitz_0", "acpitz"]:
+                    if key in temps:
+                        for entry in temps[key]:
+                            # Prefere Package / Tctl / Tdie / composite
+                            if any(w in entry.label.lower() for w in ["package", "tctl", "tdie"]) or not entry.label:
+                                if entry.current and entry.current > 0:
+                                    return int(round(entry.current))
+                        # Se não achou com label específica, pega o primeiro válido
+                        for entry in temps[key]:
+                            if entry.current and entry.current > 0:
+                                return int(round(entry.current))
+
+            # 2. Fallback via /sys/class/thermal
+            for zone in glob.glob("/sys/class/thermal/thermal_zone*"):
+                try:
+                    type_f = os.path.join(zone, "type")
+                    temp_f = os.path.join(zone, "temp")
+                    if os.path.exists(type_f) and os.path.exists(temp_f):
+                        with open(type_f) as f:
+                            z_type = f.read().strip().lower()
+                        if any(k in z_type for k in ["x86_pkg_temp", "tcpu", "cpu", "acpitz"]):
+                            with open(temp_f) as tf:
+                                val = int(tf.read().strip())
+                                if val > 1000:
+                                    val = val / 1000.0
+                                if 15 <= val <= 115:
+                                    return int(round(val))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return None
+
+    def get_ram_temperature(self):
+        """
+        Retorna dicionário {'is_digital': bool, 'temp': int or None} para a memória RAM.
+        No Linux, sensores DIMM físicos usam jc42 ou i2c-eeprom (raro em desktops comuns).
+        Se não houver sensor físico em hardware suportado, retorna temp: None.
+        """
+        try:
+            temps = psutil.sensors_temperatures()
+            if temps:
+                for key, entries in temps.items():
+                    if "jc42" in key.lower() or "dimm" in key.lower() or "dram" in key.lower() or "ram" in key.lower():
+                        for entry in entries:
+                            if entry.current and entry.current > 0:
+                                return {"is_digital": False, "temp": int(round(entry.current))}
+        except Exception:
+            pass
+        return {"is_digital": False, "temp": None}
+
     def get_ram_metrics(self):
-        """Retorna estatísticas globais de memória RAM."""
+        """Retorna estatísticas globais de memória RAM incluindo telemetria térmica."""
         v = psutil.virtual_memory()
+        temp_data = self.get_ram_temperature()
         return {
             "percent": round(v.percent, 1),
             "total_gb": round(v.total / (1024 ** 3), 2),
             "used_gb": round(v.used / (1024 ** 3), 2),
-            "available_gb": round(v.available / (1024 ** 3), 2)
+            "available_gb": round(v.available / (1024 ** 3), 2),
+            "temp": temp_data.get("temp"),
+            "is_digital": temp_data.get("is_digital", False)
         }
 
     def get_cpu_metrics(self):
-        """Retorna uso de CPU global."""
+        """Retorna uso de CPU global e temperatura atual."""
         cpu_p = psutil.cpu_percent(interval=None)
+        cpu_temp = self.get_cpu_temperature()
         return {
             "percent": round(cpu_p, 1),
-            "count": psutil.cpu_count(logical=True)
+            "count": psutil.cpu_count(logical=True),
+            "temp": cpu_temp
         }
 
     def get_top_memory_apps(self, limit=5):
@@ -242,6 +307,7 @@ class SystemMonitor:
 
                 # Informações de integridade e SMART
                 smart_info = self._get_smart_info(disk_base)
+                temp_info = self._get_disk_temperature(p.device, p.fstype, smart_info)
 
                 disks_data.append({
                     "mountpoint": p.mountpoint,
@@ -255,7 +321,9 @@ class SystemMonitor:
                     "free_gb": round(usage.free / (1024 ** 3), 1),
                     "read_mb_s": round(read_mb_s, 1),
                     "write_mb_s": round(write_mb_s, 1),
-                    "smart": smart_info
+                    "smart": smart_info,
+                    "temp": temp_info.get("temp"),
+                    "is_digital": temp_info.get("is_digital", False)
                 })
             except (PermissionError, FileNotFoundError):
                 continue
@@ -314,3 +382,65 @@ class SystemMonitor:
             return "SSD Secundário"
         base = os.path.basename(mountpoint)
         return f"Disco ({base})" if base else f"Disco ({os.path.basename(device)})"
+
+    def _get_disk_temperature(self, device_path, fstype, smart_info=None):
+        """
+        Retorna {'is_digital': bool, 'temp': int or None}
+        - Dispositivos digitais/virtuais/rede: is_digital = True, temp = None
+        - Dispositivos físicos sem leitura: is_digital = False, temp = None
+        - Dispositivos físicos com leitura: is_digital = False, temp = graus °C
+        """
+        # Se não for caminho de bloco físico em /dev/
+        if not device_path or not device_path.startswith("/dev/"):
+            return {"is_digital": True, "temp": None}
+
+        # Sistemas virtuais, loop, squashfs, montagens de rede/fuse
+        virtual_fs = {
+            "nfs", "cifs", "smbfs", "fuse", "fuse.google-drive-ocamlfuse",
+            "tmpfs", "ramfs", "squashfs", "overlay", "iso9660", "vboxsf"
+        }
+        if fstype and fstype.lower() in virtual_fs:
+            return {"is_digital": True, "temp": None}
+
+        base_dev = os.path.basename(device_path)
+        if base_dev.startswith("loop") or base_dev.startswith("zram") or base_dev.startswith("ram"):
+            return {"is_digital": True, "temp": None}
+
+        # 1. Se smart_info já encontrou temperatura
+        if smart_info and smart_info.get("temp_c") is not None:
+            return {"is_digital": False, "temp": smart_info["temp_c"]}
+
+        # 2. Tenta leitura via hwmon para controladoras NVMe
+        m_nvme = re.match(r"^(nvme\d+)n\d+", base_dev)
+        if m_nvme:
+            ctrl_name = m_nvme.group(1)
+            for h in glob.glob("/sys/class/hwmon/hwmon*"):
+                try:
+                    name_f = os.path.join(h, "name")
+                    dev_f = os.path.join(h, "device")
+                    if os.path.exists(name_f):
+                        with open(name_f) as f:
+                            if f.read().strip() == "nvme":
+                                target = os.path.realpath(dev_f)
+                                if os.path.basename(target) == ctrl_name:
+                                    temp_input = os.path.join(h, "temp1_input")
+                                    if os.path.exists(temp_input):
+                                        with open(temp_input) as tf:
+                                            return {"is_digital": False, "temp": int(round(int(tf.read().strip()) / 1000.0))}
+                except Exception:
+                    pass
+
+        # 3. Tenta hwmon de bloco para SATA/SCSI (sdX)
+        m_sd = re.match(r"^(sd[a-z]|hd[a-z])", base_dev)
+        if m_sd:
+            disk_base = m_sd.group(1)
+            for temp_f in glob.glob(f"/sys/block/{disk_base}/device/hwmon/hwmon*/temp1_input"):
+                try:
+                    with open(temp_f) as tf:
+                        return {"is_digital": False, "temp": int(round(int(tf.read().strip()) / 1000.0))}
+                except Exception:
+                    pass
+
+        # Dispositivo físico sem leitura térmica disponível
+        return {"is_digital": False, "temp": None}
+
