@@ -204,8 +204,14 @@ class AntiFreezeGuard:
             if root_pid == self.my_pid or root_pid in my_tree_pids:
                 continue
 
-            # Whitelist: ignorar se estiver protegido
-            if raw_name in whitelist or name in whitelist:
+            # Whitelist: ignorar se estiver protegido (por nome raw, nome amigável ou presença de termo no comando)
+            cmdline_str = (app.get("cmdline_str") or "").lower()
+            is_whitelisted = (
+                raw_name in whitelist or
+                name in whitelist or
+                any(w in raw_name or w in name or (len(w) > 3 and w in cmdline_str) for w in whitelist)
+            )
+            if is_whitelisted:
                 print(f"[ZeroFreeze] Ignorando '{app['name']}' (está na whitelist).")
                 continue
 

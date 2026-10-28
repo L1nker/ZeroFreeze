@@ -381,7 +381,7 @@ class RAMPopupWindow(BasePopupWindow):
         lbl_name.get_style_context().add_class("app-name")
         lbl_name.set_halign(Gtk.Align.START)
         lbl_name.set_ellipsize(Pango.EllipsizeMode.END)
-        lbl_name.set_max_width_chars(20)
+        lbl_name.set_max_width_chars(25)
         lbl_name.set_tooltip_text(tooltip)
         col.pack_start(lbl_name, False, False, 0)
 

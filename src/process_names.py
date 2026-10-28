@@ -27,6 +27,9 @@ FRIENDLY_NAMES = {
     "forkserver":           "Servidor de Processos (Firefox)",
     "chrome_crashpad":      "Monitor de Crashes (Brave/Chrome)",
     "brave":                "Brave Browser",
+    "brave-browser":        "Brave Browser",
+    "brave-browser-s":      "Brave Browser",
+    "brave-browser-stable": "Brave Browser",
     "chrome":               "Google Chrome",
     "google-chrome":        "Google Chrome",
     "chromium":             "Chromium",
@@ -295,7 +298,18 @@ def resolve_friendly_name(raw_name, cmdline=None, children=None):
                     return f"{FRIENDLY_NAMES.get(key, key.capitalize())} (Flatpak)"
         return "Aplicativo Isolado (Flatpak)"
 
-    # 2. Match exato
+    # 2. Investigação profunda da linha de comando e subprocessos (para bash/sh/scripts que envolvem apps reais)
+    cmd_full = " ".join(cmdline).lower() if cmdline else ""
+
+    # Antigravity (IDE / Assistente de IA) executado via bash ou wrapper
+    if "antigravity" in cmd_full or any("antigravity" in (c.get("name") or "").lower() for c in (children or [])):
+        return "Antigravity (Assistente de IA)"
+
+    # Brave Browser executado via launcher/bash
+    if "brave-browser" in cmd_full or "brave" in cmd_full or any("brave" in (c.get("name") or "").lower() for c in (children or [])):
+        return "Brave Browser"
+
+    # 3. Match exato
     if clean_raw in FRIENDLY_NAMES:
         return FRIENDLY_NAMES[clean_raw]
 

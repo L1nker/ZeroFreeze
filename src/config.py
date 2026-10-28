@@ -45,6 +45,9 @@ DEFAULT_CONFIG = {
         "whitelist": [
             "ZeroFreeze",
             "python3",
+            "antigravity",
+            "antigravity-ide",
+            "antigravity.bin",
             "gnome-shell",
             "cinnamon",
             "xfwm4",
