@@ -15,7 +15,8 @@ import math
 import cairo
 from src.ui.icons import (
     draw_ram_icon, draw_cpu_icon, draw_disk_icon,
-    draw_temp_icon, draw_motherboard_icon, draw_wifi_icon
+    draw_temp_icon, draw_motherboard_icon, draw_wifi_icon,
+    draw_lock_icon
 )
 
 CSS_POPUP = b"""
@@ -229,10 +230,30 @@ class BasePopupWindow(Gtk.Window):
                 draw_motherboard_icon(cr, cx, cy, icon_r=1.0, icon_g=1.0, icon_b=1.0, scale=0.85)
             elif icon_type == "network":
                 draw_wifi_icon(cr, cx, cy, icon_r=1.0, icon_g=1.0, icon_b=1.0, scale=0.85)
+            elif icon_type == "lock":
+                draw_lock_icon(cr, cx, cy, icon_r=0.45, icon_g=0.78, icon_b=1.0, scale=0.85)
             return False
 
         da.connect("draw", on_draw)
         return da
+
+    def _create_lock_widget(self):
+        """Cria um pequeno cadeado vetorial azul/ciano indicando processo protegido pela Whitelist."""
+        da = Gtk.DrawingArea()
+        da.set_size_request(13, 14)
+        da.set_valign(Gtk.Align.CENTER)
+        da.set_tooltip_text("Processo protegido pela Whitelist (ZeroFreeze não encerra)")
+
+        def on_draw(widget, cr):
+            alloc = widget.get_allocation()
+            cx = alloc.width / 2.0
+            cy = alloc.height / 2.0
+            draw_lock_icon(cr, cx, cy, icon_r=0.45, icon_g=0.78, icon_b=1.0, scale=0.82)
+            return False
+
+        da.connect("draw", on_draw)
+        return da
+
 
     def _create_header(self, title_text, icon="", icon_type=None):
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -377,13 +398,21 @@ class RAMPopupWindow(BasePopupWindow):
 
         # Coluna de nome e badge
         col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+
+        # Linha do nome (com cadeado caso esteja na Whitelist)
+        name_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        if app.get("is_whitelisted", False):
+            lock_w = self._create_lock_widget()
+            name_box.pack_start(lock_w, False, False, 0)
+
         lbl_name = Gtk.Label(label=app["name"])
         lbl_name.get_style_context().add_class("app-name")
         lbl_name.set_halign(Gtk.Align.START)
         lbl_name.set_ellipsize(Pango.EllipsizeMode.END)
         lbl_name.set_max_width_chars(25)
         lbl_name.set_tooltip_text(tooltip)
-        col.pack_start(lbl_name, False, False, 0)
+        name_box.pack_start(lbl_name, False, False, 0)
+        col.pack_start(name_box, False, False, 0)
 
         proc_cnt = app.get("process_count", 1)
         badge = Gtk.Label(label=f"{proc_cnt} subprocessos" if proc_cnt > 1 else "1 processo")
@@ -471,13 +500,19 @@ class CPUPopupWindow(BasePopupWindow):
             )
             row.set_tooltip_text(tooltip)
 
+            name_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+            if app.get("is_whitelisted", False):
+                lock_w = self._create_lock_widget()
+                name_box.pack_start(lock_w, False, False, 0)
+
             lbl_name = Gtk.Label(label=app["name"])
             lbl_name.get_style_context().add_class("app-name")
             lbl_name.set_halign(Gtk.Align.START)
             lbl_name.set_ellipsize(Pango.EllipsizeMode.END)
             lbl_name.set_max_width_chars(22)
             lbl_name.set_tooltip_text(tooltip)
-            row.pack_start(lbl_name, True, True, 0)
+            name_box.pack_start(lbl_name, True, True, 0)
+            row.pack_start(name_box, True, True, 0)
 
             cpu_val = float(app.get("percent", 0.0))
             is_zero = (cpu_val <= 0.0)

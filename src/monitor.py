@@ -319,6 +319,19 @@ class SystemMonitor:
 
             cmd_str = " ".join(app["cmdline"]) if app["cmdline"] else app["raw_name"]
 
+            # Identifica se a aplicação está protegida pela Whitelist
+            is_whitelisted = False
+            if self.config_mgr:
+                wl = set(w.lower() for w in self.config_mgr.get("safety", "whitelist", []))
+                raw_lower = app["raw_name"].lower()
+                name_lower = display_name.lower()
+                cmd_lower = cmd_str.lower()
+                is_whitelisted = (
+                    raw_lower in wl or
+                    name_lower in wl or
+                    any(w in raw_lower or w in name_lower or (len(w) > 3 and w in cmd_lower) for w in wl)
+                )
+
             result.append({
                 "root_pid": app["root_pid"],
                 "name": display_name,
@@ -327,7 +340,8 @@ class SystemMonitor:
                 "process_count": len(app["pids"]),
                 "size_str": size_str,
                 "percent": round(pct, 1),
-                "total_bytes": app["total_rss"]
+                "total_bytes": app["total_rss"],
+                "is_whitelisted": is_whitelisted
             })
         return result
 
@@ -389,13 +403,27 @@ class SystemMonitor:
 
             cmd_str = " ".join(app["cmdline"]) if app["cmdline"] else app["raw_name"]
 
+            # Identifica se a aplicação está protegida pela Whitelist
+            is_whitelisted = False
+            if self.config_mgr:
+                wl = set(w.lower() for w in self.config_mgr.get("safety", "whitelist", []))
+                raw_lower = app["raw_name"].lower()
+                name_lower = display_name.lower()
+                cmd_lower = cmd_str.lower()
+                is_whitelisted = (
+                    raw_lower in wl or
+                    name_lower in wl or
+                    any(w in raw_lower or w in name_lower or (len(w) > 3 and w in cmd_lower) for w in wl)
+                )
+
             result.append({
                 "root_pid": app["root_pid"],
                 "name": display_name,
                 "raw_name": app["raw_name"],
                 "cmdline_str": cmd_str,
                 "process_count": len(app["pids"]),
-                "percent": round(app["total_cpu"], 1)
+                "percent": round(app["total_cpu"], 1),
+                "is_whitelisted": is_whitelisted
             })
         return result
 

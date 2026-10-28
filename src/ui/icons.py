@@ -241,3 +241,43 @@ def draw_wifi_icon(cr, cx, cy, icon_r=0.92, icon_g=0.94, icon_b=0.98, scale=1.0)
     cr.stroke()
 
 
+def draw_lock_icon(cr, cx, cy, icon_r=0.45, icon_g=0.75, icon_b=1.0, scale=1.0):
+    """
+    Ícone vetorial de Cadeado (Whitelist / Protegido).
+    Arco superior arredondado e corpo retangular com orifício de fechadura.
+    """
+    sc = max(0.4, scale)
+    body_w = 9.0 * sc
+    body_h = 7.0 * sc
+    x0 = cx - body_w / 2.0
+    y0 = cy - 0.5 * sc
+
+    # 1. Haste do cadeado (arco superior)
+    shackle_r = 3.2 * sc
+    shackle_cx = cx
+    shackle_cy = y0 - 1.0 * sc
+    cr.set_line_width(max(1.0, 1.4 * sc))
+    cr.set_line_cap(1)  # ROUND
+    cr.set_source_rgba(icon_r, icon_g, icon_b, 0.95)
+    cr.arc(shackle_cx, shackle_cy, shackle_r, math.pi, 2 * math.pi)
+    cr.line_to(shackle_cx + shackle_r, y0)
+    cr.move_to(shackle_cx - shackle_r, shackle_cy)
+    cr.line_to(shackle_cx - shackle_r, y0)
+    cr.stroke()
+
+    # 2. Corpo do cadeado (retângulo com cantos levemente arredondados)
+    cr.rectangle(x0, y0, body_w, body_h)
+    cr.fill()
+
+    # 3. Orifício da fechadura (ponto escuro central)
+    cr.set_source_rgba(0.08, 0.09, 0.12, 0.95)
+    hole_y = y0 + 2.5 * sc
+    cr.arc(cx, hole_y, max(0.6, 1.0 * sc), 0, 2 * math.pi)
+    cr.fill()
+    cr.set_line_width(max(0.6, 0.9 * sc))
+    cr.move_to(cx, hole_y)
+    cr.line_to(cx, y0 + 5.2 * sc)
+    cr.stroke()
+
+
+
